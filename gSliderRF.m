@@ -2,7 +2,7 @@
 % Start by designing beta filters.
 N = 128; % # time points in pulse
 G = 5; % gSlider factor
-Gind = 5; % sub-slice to design for
+Gind = 2; % sub-slice to design for
 Gpulse = 'ex';
 tbG = 12; % overall tb product of encoding pulse
 tbOther = 8; % tb product of non-encoding pulse
@@ -38,22 +38,24 @@ end
 %plot(imag(B));
 %plot(abs(B));
 
-[rf12,b12] = dzrf(N,tbG,Gpulse,'ls',d1,d2);
-b12 = b12.*exp(1i*2*pi/N*4*(0:N-1));
-rf12 = b2rf(b12);
-B12 = fftshift(fft(b12(:).',8*N).*exp(1i*2*pi/(8*N)*N/2*(0:8*N-1)));
-if strcmp(Gpulse,'se')
-  B12 = B12.^2;
-end
-[ap12,bp12] = abr(rf12,-N/2:1/8:N/2-1/8);
-if strcmp(Gpulse,'ex')
-  Mxy12 = 2*conj(ap12).*bp12.*exp(1i*2*pi/(8*N)*N/2*(0:8*N-1)');
-elseif strcmp(Gpulse,'se')
-  Mxy12 = bp12.^2;
-end
+% Did a conventional design with same characteristics for comparison,
+% while exploring islr symmetry issue. 
+% [rf12,b12] = dzrf(N,tbG,Gpulse,'ls',d1,d2);
+% b12 = b12.*exp(1i*2*pi/N*4*(0:N-1));
+% rf12 = b2rf(b12);
+% B12 = fftshift(fft(b12(:).',8*N).*exp(1i*2*pi/(8*N)*N/2*(0:8*N-1)));
+% if strcmp(Gpulse,'se')
+%   B12 = B12.^2;
+% end
+% [ap12,bp12] = abr(rf12,-N/2:1/8:N/2-1/8);
+% if strcmp(Gpulse,'ex')
+%   Mxy12 = 2*conj(ap12).*bp12.*exp(1i*2*pi/(8*N)*N/2*(0:8*N-1)');
+% elseif strcmp(Gpulse,'se')
+%   Mxy12 = bp12.^2;
+% end
 
-% scale and solve for rf - note that b2rf doesn't work bc 
-% b is not flipped correctly for non-symmetric profiles
+% scale and solve for rf - note that b2rf alone doesn't work bc 
+% b is not flipped correctly wrt a for non-symmetric profiles
 a = b2a(b);
 rf = cabc2rf(a,fliplr(b)); % iSLR for min-power pulse
 
