@@ -1,6 +1,5 @@
 % TODO:
-% - fix CVX
-% - tune firls design for overshoot in SE case
+% - implement DFT phases
 
 % Test script to design gSlider pulses.
 % Start by designing beta filters.
@@ -17,15 +16,17 @@ otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pul
 gSlew = 150; % mT/m/ms, gradient slew rate for ramps
 if strcmp(Gpulse,'ex')
     bsf = sqrt(1/2); % excitation pulse
-    d1 = 0.01;d2 = 0.01; % passband and stopband ripples of the overall profile
-    d1G = sqrt(d1/2); % Mxy passband ripple
-    d2G = d2/sqrt(2); % Mxy stopband ripple
+    d1 = 0.001;d2 = 0.01; % passband and stopband ripples of the overall profile
+    d1 = sqrt(d1/2); % Mxy passband ripple
+    d2 = d2/sqrt(2); % Mxy stopband ripple
+    d1O = 0.01;d2O = 0.01; % passband and stopband ripples of the se profile
     phi = pi; % slice phase - e.g., for ex, will be pi, for se, will be pi/2
 elseif strcmp(Gpulse,'se')
     bsf = 1; % spin echo pulse
-    d1 = 0.01;d2 = 0.01; % passband and stopband ripples of the overall profile
-    d1G = d1/4;
-    d2G = sqrt(d2);
+    d1 = 0.001;d2 = 0.01; % passband and stopband ripples of the overall profile
+    d1 = d1/4;
+    d2 = sqrt(d2);
+    d1O = 0.01;d2O = 0.01; % passband and stopband ripples of the ex profile
     phi = pi/2; % slice phase
 end
 
@@ -49,10 +50,10 @@ for Gind = 1:ceil(G/2) % sub-slice to design for
     % design the beta filter
     if usecvx
         printf('Designing beta filter using cvx');
-        b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1G,d2G,phi,8);
+        b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,8);
     else % use firls (less accurate but fast)
         printf('Designing beta filter using firls');
-        b = bsf*gSliderBeta(N,G,Gind,tbG,d1G,d2G,phi);
+        b = bsf*gSliderBeta(N,G,Gind,tbG,d1,d2,phi);
     end
     
     % scale and solve for rf - note that b2rf alone doesn't work bc
@@ -96,7 +97,7 @@ if strcmp(Gpulse,'ex')
 else
     Gother = 'ex';
 end
-rfOther = dzrf(N,tbOther,Gother,'ls',d1,d2);
+rfOther = dzrf(N,tbOther,Gother,'ls',d1O,d2O);
 [apO,bpO] = abr(rfOther,-N/2:1/8:N/2-1/8);
 if strcmp(Gpulse,'ex')
     MxyO = bpO.^2;
