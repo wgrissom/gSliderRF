@@ -1,8 +1,8 @@
 % Script to design gSlider pulses.
 addpath rf_tools/ % JP's tools: gets dinf, b2a, cabc2rf, abr...
-N = 128; % # time points in pulse
+N = 128; % # time points in filter
 G = 5; % gSlider factor
-Gpulse = 'ex';
+Gpulse = 'ex'; % 'ex' or 'se' gSlider encoding
 tbG = 12; % overall tb product of encoding pulse
 tbOther = 8; % tb product of non-encoding pulse
 usecvx = false; % use Boyd's cvx toolbox for beta filter design
@@ -10,7 +10,6 @@ dt = 2.5e-3; % ms, final dwell time of pulses
 T = 11; % ms, pulse duration of gSlider pulse; other pulse duration will be tbOther/tbG*T
 slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
-gSlew = 150; % mT/m/ms, gradient slew rate for ramps
 DFTphs = false; % do DFT phases
 if strcmp(Gpulse,'ex')
     bsf = sqrt(1/2); % excitation pulse
