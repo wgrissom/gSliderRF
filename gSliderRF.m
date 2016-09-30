@@ -1,4 +1,5 @@
 % Script to design gSlider pulses.
+addpath rf_tools/ % JP's tools: gets dinf, b2a, cabc2rf, abr...
 N = 128; % # time points in pulse
 G = 5; % gSlider factor
 Gpulse = 'ex';
