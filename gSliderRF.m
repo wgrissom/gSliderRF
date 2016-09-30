@@ -11,7 +11,7 @@ T = 11; % ms, pulse duration of gSlider pulse; other pulse duration will be tbOt
 slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
 gSlew = 150; % mT/m/ms, gradient slew rate for ramps
-DFTphs = true; % do DFT phases
+DFTphs = false; % do DFT phases
 if strcmp(Gpulse,'ex')
     bsf = sqrt(1/2); % excitation pulse
     d1 = 0.001;d2 = 0.01; % passband and stopband ripples of the overall profile
