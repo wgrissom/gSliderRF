@@ -1,11 +1,7 @@
-% TODO:
-% - implement DFT phases
-
-% Test script to design gSlider pulses.
-% Start by designing beta filters.
+% Script to design gSlider pulses.
 N = 128; % # time points in pulse
 G = 5; % gSlider factor
-Gpulse = 'se';
+Gpulse = 'ex';
 tbG = 12; % overall tb product of encoding pulse
 tbOther = 8; % tb product of non-encoding pulse
 usecvx = false; % use Boyd's cvx toolbox for beta filter design
@@ -14,6 +10,7 @@ T = 11; % ms, pulse duration of gSlider pulse; other pulse duration will be tbOt
 slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
 gSlew = 150; % mT/m/ms, gradient slew rate for ramps
+DFTphs = true; % do DFT phases
 if strcmp(Gpulse,'ex')
     bsf = sqrt(1/2); % excitation pulse
     d1 = 0.001;d2 = 0.01; % passband and stopband ripples of the overall profile
@@ -32,28 +29,36 @@ end
 
 % print out some info about what we are doing
 printf('--------gSlider RF Pulse Design---------');
-printf('Designing an %s gSlider encoding pulse.',Gpulse);
-printf('Number of bands: %d',G);
-printf('Time-bandwidth product: %d',tbG);
+printf('Designing %s gSlider encoding pulses.',Gpulse);
+printf('Number of sub-slices: %d',G);
+printf('Slab time-bandwidth product: %g',tbG);
 printf('Duration: %d ms',T);
-printf('Slice Thickness: %d mm',slThick);
-printf('Output dwell time: %d ms',dt);
-printf('Time-bandwidth product of other pulse: %d',tbOther);
-printf('Slice thickness ratio of other pulse: %d',otherThickFactor);
+printf('Slice Thickness: %g mm',slThick);
+printf('Output dwell time: %g ms',dt);
+printf('Time-bandwidth product of other pulse: %g',tbOther);
+printf('Slice thickness ratio of other pulse: %g',otherThickFactor);
 
 rfEnc = zeros(N,ceil(G/2));
 Mxy = zeros(N*8,ceil(G/2));
+nomFlips = zeros(ceil(G/2),1);
 for Gind = 1:ceil(G/2) % sub-slice to design for
     
     printf('Designing pulse for sub-slice %d of %d',Gind,G);
     
     % design the beta filter
-    if usecvx
-        printf('Designing beta filter using cvx');
-        b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,8);
-    else % use firls (less accurate but fast)
-        printf('Designing beta filter using firls');
-        b = bsf*gSliderBeta(N,G,Gind,tbG,d1,d2,phi);
+    if ~DFTphs
+        if usecvx
+            printf('Designing beta filter using cvx');
+            b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,8);
+        else % use firls (less accurate but fast)
+            printf('Designing beta filter using firls');
+            b = bsf*gSliderBeta(N,G,Gind,tbG,d1,d2,phi);
+        end
+    else
+        printf('Designing DFT beta filter using firls');
+        phs = 2*pi/G*(ceil(-G/2):ceil(G/2)-1)*(Gind+ceil(-G/2)-1);
+        if strcmp(Gpulse,'se'); phs = phs./2; end
+        b = bsf*gSliderBetaDFT(N,phs,tbG,d1,d2);
     end
     
     % scale and solve for rf - note that b2rf alone doesn't work bc
@@ -62,6 +67,8 @@ for Gind = 1:ceil(G/2) % sub-slice to design for
     
     % simulate the pulse
     [ap,bp] = abr(rfEnc(:,Gind),-N/2:1/8:N/2-1/8);
+    % calculate target flip angle of pulse in degrees
+    nomFlips(Gind) = 2*asin(abs(bp(length(bp)/2+1)))*180/pi; 
     if strcmp(Gpulse,'ex')
         Mxy(:,Gind) = 2*conj(ap).*bp.*exp(1i*2*pi/(8*N)*N/2*(0:8*N-1)');
     elseif strcmp(Gpulse,'se')
@@ -75,9 +82,9 @@ zG = (-N/2:1/8:N/2-1/8)*slThick/tbG;
 figure;
 for ii = 1:ceil(G/2)
     if strcmp(Gpulse,'ex')
-        titleText = sprintf('EX profile; gSlider factor = %d; sub-slice %d',G,Gind);
+        titleText = sprintf('EX profile; gSlider factor %d; sub-slice %d',G,ii);
     else
-        titleText = sprintf('SE pulse; gSlider factor = %d; sub-slice %d',G,Gind);
+        titleText = sprintf('SE pulse; gSlider factor %d; sub-slice %d',G,ii);
     end
     
     % plot the first encoding pulse
@@ -196,3 +203,5 @@ ylabel 'uT'
 % write out the pulses, gradient amplitude, target slice thickness,
 % expected flip at middle of slice
 % TODO: Should we phase shift the 90 or 180 by pi/2 for CPMG?
+save(sprintf('gSliderRF_%dx_%s',G,Gpulse),'rfEncOut','rfOtherOut',...
+    'gAmp','slThick','dt','nomFlips');

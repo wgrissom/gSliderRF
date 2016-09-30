@@ -17,9 +17,13 @@ if Gind > 1 && Gind < G
   d = d + exp(1i*phi)*double(nn >= Gcent-(tb/G/2-ftw*(tb/2))/(N/2) & nn <= Gcent+(tb/G/2-ftw*(tb/2))/(N/2));
   d = d + double(nn >= Gcent+(tb/G/2+ftw*(tb/2))/(N/2) & nn <= (1-ftw)*(tb/2)/(N/2));
 elseif Gind == 1
-  
+  % slab and sub-slice share a left transition band
+  d = d + exp(1i*phi)*double(nn >= -(1-ftw)*(tb/2)/(N/2) & nn <= Gcent+(tb/G/2-ftw*(tb/2))/(N/2));
+  d = d + double(nn >= Gcent+(tb/G/2+ftw*(tb/2))/(N/2) & nn <= (1-ftw)*(tb/2)/(N/2));
 elseif Gind == G
-  
+  % slab and sub-slice share a right transition band
+  d = d + double(nn >= -(1-ftw)*(tb/2)/(N/2) & nn <= Gcent+(tb/G/2-ftw*(tb/2))/(N/2));
+  d = d + exp(1i*phi)*double(nn >= Gcent+(tb/G/2+ftw*(tb/2))/(N/2) & nn <= (1-ftw)*(tb/2)/(N/2));
 end
 
 dd = d(s | logical(abs(d)));
