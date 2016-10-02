@@ -30,7 +30,7 @@ elseif strcmp(Gpulse,'se')
     d2 = sqrt(d2);
     d1O = 0.01;d2O = 0.01; % passband and stopband ripples of the ex profile
     phi = pi/2; % slice phase
-    cvx_osfact = 32;
+    cvx_osfact = 8;
 end
 
 % print out some info about what we are doing
