@@ -1,4 +1,4 @@
-function b = gSliderBeta_cvx(N,G,Gind,tb,d1,d2,phi,osfact)
+function b = gSliderBeta_cvx(N,G,Gind,tb,d1,d2,phi,osfact,bPhsMatch,phsFact,freqFactor)
 
 % Script to design a gSlider beta filter using cvx.
 ftw = dinf(d1,d2)/tb; % fractional transition width of the slab profile
@@ -24,6 +24,14 @@ elseif Gind == G
   % slab and sub-slice share a right transition band
   d = d + double(nn >= -(1-ftw)*(tb/2)/(N/2) & nn <= Gcent+(tb/G/2-ftw*(tb/2))/(N/2));
   d = d + exp(1i*phi)*double(nn >= Gcent+(tb/G/2+ftw*(tb/2))/(N/2) & nn <= (1-ftw)*(tb/2)/(N/2));
+end
+
+if exist('bPhsMatch','var')
+    % evaluate the passed-in beta filter at the frequencies in f,
+    % to incorporate the same phase into the current filter, so that the
+    % phase cancels if it is
+    BPhsMatch = exp(-1i*2*pi/N*nn*(N/2)*freqFactor*(-N/2:N/2-1))*bPhsMatch(:);
+    d = d.*exp(1i*angle(BPhsMatch(:).^phsFact));
 end
 
 dd = d(s | logical(abs(d)));

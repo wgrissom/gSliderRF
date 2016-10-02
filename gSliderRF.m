@@ -11,13 +11,18 @@ T = 11; % ms, pulse duration of gSlider pulse; other pulse duration will be tbOt
 slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
 DFTphs = false; % do DFT phases
+doRootFlip = false; % root-flip the non-encoding pulse,
+% and design the gSlider pulses to cancel the root-flipped phase profile.
+% This requires that the non-encoding pulse have lower tb than the encoding
+% pulse.
 if strcmp(Gpulse,'ex')
     bsf = sqrt(1/2); % excitation pulse
-    d1 = 0.001;d2 = 0.01; % passband and stopband ripples of the overall profile
+    d1 = 0.01;d2 = 0.01; % passband and stopband ripples of the overall profile
     d1 = sqrt(d1/2); % Mxy passband ripple
     d2 = d2/sqrt(2); % Mxy stopband ripple
     d1O = 0.01;d2O = 0.01; % passband and stopband ripples of the se profile
     phi = pi; % slice phase - e.g., for ex, will be pi, for se, will be pi/2
+    cvx_osfact = 8;
 elseif strcmp(Gpulse,'se')
     bsf = 1; % spin echo pulse
     d1 = 0.001;d2 = 0.01; % passband and stopband ripples of the overall profile
@@ -25,6 +30,7 @@ elseif strcmp(Gpulse,'se')
     d2 = sqrt(d2);
     d1O = 0.01;d2O = 0.01; % passband and stopband ripples of the ex profile
     phi = pi/2; % slice phase
+    cvx_osfact = 32;
 end
 
 % print out some info about what we are doing
@@ -38,6 +44,29 @@ printf('Output dwell time: %g ms',dt);
 printf('Time-bandwidth product of other pulse: %g',tbOther);
 printf('Slice thickness ratio of other pulse: %g',otherThickFactor);
 
+% design and simulate the other pulse
+if strcmp(Gpulse,'ex')
+    Gother = 'se';
+else
+    Gother = 'ex';
+end
+printf('Designing the %s (non-encoding) pulse',Gother);
+[rfOther,bOther] = dzrf(N,tbOther,Gother,'ls',d1O,d2O);
+if doRootFlip
+    printf('Root-flipping the non-encoding pulse');
+    if tbOther > tbG
+        error 'Non-encoding tb must be < gSlider tb to root-flip'
+    end
+    [rfOther,bOther] = rootFlip(bOther,d1O,pi/2+strcmp(Gother,'se')*pi/2,tbOther);
+end
+% simulate pulse on a scaled grid that matches the encoding pulse
+[apO,bpO] = abr(rfOther,(-N/2:1/8:N/2-1/8)*tbOther/tbG/otherThickFactor);
+if strcmp(Gpulse,'ex')
+    MxyO = bpO.^2;
+elseif strcmp(Gpulse,'se')
+    MxyO = 2*conj(apO).*bpO.*exp(1i*2*pi/N*N/2*(-N/2:1/8:N/2-1/8)'*tbOther/tbG/otherThickFactor);
+end
+
 rfEnc = zeros(N,ceil(G/2));
 Mxy = zeros(N*8,ceil(G/2));
 nomFlips = zeros(ceil(G/2),1);
@@ -49,9 +78,24 @@ for Gind = 1:ceil(G/2) % sub-slice to design for
     if ~DFTphs
         if usecvx
             printf('Designing beta filter using cvx');
-            b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,8);
+            if doRootFlip
+                if strcmp(Gpulse,'ex')
+                    phsFact = 2; % we have to square the 180 beta phase to
+                    % cancel it with an EX pulse
+                else
+                    phsFact = 1/2; % we have to halve the 90 beta phase to
+                    % cancel it with an SE pulse
+                end
+                b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,cvx_osfact,...
+                    bOther,phsFact,tbOther/tbG/otherThickFactor);
+            else
+                b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,cvx_osfact);
+            end
         else % use firls (less accurate but fast)
             printf('Designing beta filter using firls');
+            if doRootFlip
+                error 'Root flip + firls beta design not compatible'
+            end
             b = bsf*gSliderBeta(N,G,Gind,tbG,d1,d2,phi);
         end
     else
@@ -68,7 +112,7 @@ for Gind = 1:ceil(G/2) % sub-slice to design for
     % simulate the pulse
     [ap,bp] = abr(rfEnc(:,Gind),-N/2:1/8:N/2-1/8);
     % calculate target flip angle of pulse in degrees
-    nomFlips(Gind) = 2*asin(abs(bp(length(bp)/2+1)))*180/pi; 
+    nomFlips(Gind) = 2*asin(abs(bp(length(bp)/2+1)))*180/pi;
     if strcmp(Gpulse,'ex')
         Mxy(:,Gind) = 2*conj(ap).*bp.*exp(1i*2*pi/(8*N)*N/2*(0:8*N-1)');
     elseif strcmp(Gpulse,'se')
@@ -79,15 +123,19 @@ end
 
 % plot all the profiles
 zG = (-N/2:1/8:N/2-1/8)*slThick/tbG;
-figure;
+h1 = figure;
+h2 = figure;
 for ii = 1:ceil(G/2)
     if strcmp(Gpulse,'ex')
         titleText = sprintf('EX profile; gSlider factor %d; sub-slice %d',G,ii);
+        seSig = conj(Mxy(:,ii)).*MxyO;
     else
-        titleText = sprintf('SE pulse; gSlider factor %d; sub-slice %d',G,ii);
+        titleText = sprintf('SE profile; gSlider factor %d; sub-slice %d',G,ii);
+        seSig = Mxy(:,ii).*conj(MxyO);
     end
     
     % plot the first encoding pulse
+    figure(h1);
     subplot(ceil(G/2)*100 + 10 + ii),hold on
     plot(zG,abs(Mxy(:,ii)));
     plot(zG,real(Mxy(:,ii)));
@@ -96,20 +144,19 @@ for ii = 1:ceil(G/2)
     legend('|Mxy|','Mx','My');
     xlabel 'mm'
     axis([min(zG) max(zG) -1 1]);
-end
-
-% design and simulate the other pulse
-if strcmp(Gpulse,'ex')
-    Gother = 'se';
-else
-    Gother = 'ex';
-end
-rfOther = dzrf(N,tbOther,Gother,'ls',d1O,d2O);
-[apO,bpO] = abr(rfOther,-N/2:1/8:N/2-1/8);
-if strcmp(Gpulse,'ex')
-    MxyO = bpO.^2;
-elseif strcmp(Gpulse,'se')
-    MxyO = 2*conj(apO).*bpO.*exp(1i*2*pi/(8*N)*N/2*(0:8*N-1)');
+    
+    % plot the overall spin echo signal
+    figure(h2);
+    titleText = sprintf('Spin echo signal profile; gSlider factor %d; sub-slice %d',G,ii);
+    subplot(ceil(G/2)*100 + 10 + ii),hold on
+    plot(zG,abs(seSig));
+    plot(zG,real(seSig));
+    plot(zG,imag(seSig));
+    title(titleText);
+    legend('|SE signal|','Re\{SE Signal\}','Im\{SE Signal\}');
+    xlabel 'mm'
+    axis([min(zG) max(zG) -1 1]);
+    
 end
 
 % plot both the pulse profiles
@@ -126,30 +173,29 @@ else
 end
 % plot the first encoding pulse
 figure;subplot(310+plind),hold on
-zG = (-N/2:1/8:N/2-1/8)*slThick/tbG;
-plot(zG,abs(Mxy(:,1)));
-plot(zG,real(Mxy(:,1)));
-plot(zG,imag(Mxy(:,1)));
+z = (-N/2:1/8:N/2-1/8)*slThick/tbG;
+plot(z,abs(Mxy(:,1)));
+plot(z,real(Mxy(:,1)));
+plot(z,imag(Mxy(:,1)));
 title(titleText);
 legend('|Mxy|','Mx','My');
 xlabel 'mm'
-axis([min(zG) max(zG) -1 1]);
+axis([min(z) max(z) -1 1]);
 
 % plot the other pulse
 subplot(310+plindO),hold on
-zO = (-N/2:1/8:N/2-1/8)*slThick*otherThickFactor/tbOther;
-plot(zO,abs(MxyO));
-plot(zO,real(MxyO));
-plot(zO,imag(MxyO));
+plot(z,abs(MxyO));
+plot(z,real(MxyO));
+plot(z,imag(MxyO));
 title(titleTextO);
 legend('|Mxy|','Mx','My');
 xlabel 'mm'
-axis([min(zG) max(zG) -1 1]);
+axis([min(z) max(z) -1 1]);
 
 % plot them together, to compare thicknesses
 subplot(313),hold on
-plot(zG,abs(Mxy(:,1)));
-plot(zO,abs(MxyO));
+plot(z,abs(Mxy(:,1)));
+plot(z,abs(MxyO));
 legend('|Mxy|','|Mxy|, other');
 xlabel 'mm'
 axis([-2*slThick 2*slThick 0 1]);
