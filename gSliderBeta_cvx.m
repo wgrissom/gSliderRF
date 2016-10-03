@@ -46,17 +46,17 @@ elseif Gind == 1
 elseif Gind == G
     % slab and sub-slice share a right transition band
     lbnd = -(1-ftw)*(tb/2)/(N/2);
-    rbnd = Gcent+(tb/G/2-ftw*(tb/2))/(N/2);
+    rbnd = Gcent-(tb/G/2+ftw*(tb/2))/(N/2);
     if max(double(nn >= lbnd & nn <= rbnd)) == 0
         nn = sort([nn; lbnd + (rbnd-lbnd)/2],'ascend');
     end
-    lbnd = Gcent+(tb/G/2+ftw*(tb/2))/(N/2);
+    lbnd = Gcent-(tb/G/2-ftw*(tb/2))/(N/2);
     rbnd = (1-ftw)*(tb/2)/(N/2);
     if max(double(nn >= lbnd & nn <= rbnd)) == 0
         nn = sort([nn; lbnd + (rbnd-lbnd)/2],'ascend');
     end    
-    d = double(nn >= -(1-ftw)*(tb/2)/(N/2) & nn <= Gcent+(tb/G/2-ftw*(tb/2))/(N/2));
-    d = d + exp(1i*phi)*double(nn >= Gcent+(tb/G/2+ftw*(tb/2))/(N/2) & nn <= (1-ftw)*(tb/2)/(N/2));
+    d = double(nn >= -(1-ftw)*(tb/2)/(N/2) & nn <= Gcent-(tb/G/2+ftw*(tb/2))/(N/2));
+    d = d + exp(1i*phi)*double(nn >= Gcent-(tb/G/2-ftw*(tb/2))/(N/2) & nn <= (1-ftw)*(tb/2)/(N/2));
 end
 s = nn <= -(1+ftw)*(tb/2)/(N/2) | nn >= (1+ftw)*(tb/2)/(N/2); % stopband mask
 wts = 1./abs(nn).^0.5; % decaying ripple weights
