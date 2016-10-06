@@ -15,16 +15,20 @@ maxRF = Inf;
 for ii = 1:2^sum(candidates)
     
     % convert this ii to binary pattern
-    doflip = de2bi(ii-1);
+    doFlipStr = fliplr(dec2bin(ii-1));
+    doFlip = zeros(1,length(doFlipStr));
+    for jj = 1:length(doFlipStr)
+       doFlip(jj) = str2num(doFlipStr(jj)); 
+    end
     % add zeros for the rest of the passbands
-    doflip = [doflip(:); zeros(sum(candidates)-length(doflip),1)];
+    doFlip = [doFlip(:); zeros(sum(candidates)-length(doFlip),1)];
     % embed in all-roots vector
     tmp = zeros(length(b)-1,1);
-    tmp(candidates) = doflip;
-    doflip = tmp;
+    tmp(candidates) = doFlip;
+    doFlip = tmp;
     % flip those indices
     rt = r(:);
-    rt(doflip == 1) = conj(1./rt(doflip == 1));
+    rt(doFlip == 1) = conj(1./rt(doFlip == 1));
     % get polynomial coefficients back from flipped roots
     tmp = poly(rt);
     % important: normalize before modulating! doesn't work
