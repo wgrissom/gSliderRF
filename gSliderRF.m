@@ -11,6 +11,7 @@ T = 11; % ms, pulse duration of gSlider pulse; other pulse duration will be tbOt
 slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
 DFTphs = false; % do DFT phases
+cancelAlphaPhs = true; % Design the excitation pulse's beta to cancel its associated alpha phase
 doRootFlip = false; % root-flip the non-encoding pulse,
 % and design the gSlider pulses to cancel the root-flipped phase profile.
 % This requires that the non-encoding pulse have lower tb than the encoding
@@ -59,6 +60,9 @@ if doRootFlip
     end
     [rfOther,bOther] = rootFlip(bOther,d1O,pi/2+strcmp(Gother,'se')*pi/2,tbOther);
 end
+if strcmp(Gpulse,'se') && cancelAlphaPhs % this pulse is the ex pulse; cancel alpha phs
+    rfOther = b2rf(ifft(fft(bOther).*exp(-1i*angle(fft(fliplr(b2a(bOther)))))));
+end
 % simulate pulse on a scaled grid that matches the encoding pulse
 [apO,bpO] = abr(rfOther,(-N/2:1/8:N/2-1/8)*tbOther/tbG/otherThickFactor);
 if strcmp(Gother,'se')
@@ -67,19 +71,10 @@ elseif strcmp(Gother,'ex')
     MxyO = 2*conj(apO).*bpO.*exp(1i*2*pi/N*N/2*(-N/2:1/8:N/2-1/8)'*tbOther/tbG/otherThickFactor);
 end
 
-if doRootFlip == false
-    % only design up to middle gSlider pulse; time-reverse
-    % to get the rest
-    GindMax = ceil(G/2);
-else
-    % design all gSlider pulses directly, in case 
-    % root-flipped pulse is not symmetric
-    GindMax = G; 
-end
-rfEnc = zeros(N,GindMax);
-Mxy = zeros(N*8,GindMax);
-nomFlips = zeros(GindMax,1);
-for Gind = 1:GindMax % sub-slice to design for
+rfEnc = zeros(N,G);
+Mxy = zeros(N*8,G);
+nomFlips = zeros(G,1);
+for Gind = 1:G % sub-slice to design for
     
     printf('Designing pulse for sub-slice %d of %d',Gind,G);
     
@@ -116,7 +111,11 @@ for Gind = 1:GindMax % sub-slice to design for
     
     % scale and solve for rf - note that b2rf alone doesn't work bc
     % b is not flipped correctly wrt a for non-symmetric profiles
-    rfEnc(:,Gind) = cabc2rf(b2a(b),fliplr(b)); % iSLR for min-power pulse
+    a = b2a(b);
+    if strcmp(Gpulse,'ex') && cancelAlphaPhs
+        b = ifft(fft(b(:).').*exp(1i*angle(fft(fliplr(a(:).')))));
+    end
+    rfEnc(:,Gind) = cabc2rf(a,fliplr(b(:).')); % iSLR for min-power pulse
     
     % simulate the pulse
     [ap,bp] = abr(rfEnc(:,Gind),-N/2:1/8:N/2-1/8);
@@ -134,7 +133,7 @@ end
 zG = (-N/2:1/8:N/2-1/8)*slThick/tbG;
 h1 = figure;
 h2 = figure;
-for ii = 1:GindMax
+for ii = 1:G
     if strcmp(Gpulse,'ex')
         titleText = sprintf('EX profile; gSlider factor %d; sub-slice %d',G,ii);
         seSig = conj(Mxy(:,ii)).*MxyO;
@@ -145,7 +144,7 @@ for ii = 1:GindMax
     
     % plot the first encoding pulse
     figure(h1);
-    subplot(GindMax*100 + 10 + ii),hold on
+    subplot(G*100 + 10 + ii),hold on
     plot(zG,abs(Mxy(:,ii)));
     plot(zG,real(Mxy(:,ii)));
     plot(zG,imag(Mxy(:,ii)));
@@ -157,7 +156,7 @@ for ii = 1:GindMax
     % plot the overall spin echo signal
     figure(h2);
     titleText = sprintf('Spin echo signal profile; gSlider factor %d; sub-slice %d',G,ii);
-    subplot(GindMax*100 + 10 + ii),hold on
+    subplot(G*100 + 10 + ii),hold on
     plot(zG,abs(seSig));
     plot(zG,real(seSig));
     plot(zG,imag(seSig));
@@ -213,13 +212,9 @@ title 'Both profile amplitudes'
 % interpolate pulses to target dwell time
 Nout = T/dt;
 rfEncOut = zeros(Nout,G);
-for ii = 1:GindMax
+for ii = 1:G
     rfEncOut(:,ii) = interp1((0:N-1)./N*T,rfEnc(:,ii),(0:Nout-1)*dt,'spline',0);
     rfEncOut(:,ii) = rfEncOut(:,ii)./sum(real(rfEncOut(:,ii)))*sum(real(rfEnc(:,ii)));
-end
-% time-reverse to get opposite pulses
-if doRootFlip == false
-    rfEncOut(:,ceil(G/2)+1:end) = fliplr(flipud(rfEncOut(:,1:floor(G/2))));
 end
 Tother = T*tbOther/tbG/otherThickFactor;
 NoutOther = round(Tother/dt);
