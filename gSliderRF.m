@@ -63,7 +63,7 @@ if doRootFlip
     [rfOther,bOther] = rootFlip(bOther,d1O,pi/2+strcmp(Gother,'se')*pi/2,tbOther);
 end
 if strcmp(Gpulse,'se') && cancelAlphaPhs % this pulse is the ex pulse; cancel alpha phs
-    rfOther = b2rf(ifft(fft(bOther).*exp(-1i*angle(fft(fliplr(b2a(bOther)))))));
+    rfOther = b2rf(ifft(fft(bOther(:).').*exp(-1i*angle(fft(fliplr(b2a(bOther)))))));
 end
 % simulate pulse on a scaled grid that matches the encoding pulse
 [apO,bpO] = abr(rfOther,(-N/2:1/8:N/2-1/8)*tbOther/tbG/otherThickFactor);
