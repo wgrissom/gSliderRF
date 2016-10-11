@@ -3,7 +3,9 @@ addpath rf_tools/ % JP's tools: gets dinf, b2a, cabc2rf, abr...
 N = 128; % # time points in filter
 G = 5; % gSlider factor
 Gpulse = 'ex'; % 'ex' or 'se' gSlider encoding
-tbG = 12; % overall tb product of encoding pulse
+tbG = 12; % overall tb product of encoding pulse; Should be > 2*G. If G/tbG 
+% is too high, you may get an error about non-increasing band edges from
+% firls
 tbOther = 8; % tb product of non-encoding pulse
 usecvx = false; % use Boyd's cvx toolbox for beta filter design
 dt = 2.5e-3; % ms, final dwell time of pulses
@@ -95,12 +97,23 @@ for Gind = 1:G % sub-slice to design for
             else
                 b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,cvx_osfact);
             end
-        else % use firls (less accurate but fast)
+        else % use firls
             printf('Designing beta filter using firls');
-            if doRootFlip
-                error 'Root flip + firls beta design not compatible'
-            end
             b = bsf*gSliderBeta(N,G,Gind,tbG,d1,d2,phi);
+            if doRootFlip
+                if strcmp(Gpulse,'ex')
+                    phsFact = 2; % we have to square the 180 beta phase to
+                    % cancel it with an EX pulse
+                else
+                    phsFact = 1/2; % we have to halve the 90 beta phase to
+                    % cancel it with an SE pulse
+                end
+                freqFactor = tbOther/tbG/otherThickFactor;
+                BPhsMatch = exp(-1i*2*pi/N*(-N/2:N/2-1)'*freqFactor*...
+                    (-N/2:N/2-1))*bOther(:);
+                b = ifftshift(ifft(ifftshift(fftshift(fft(fftshift(b(:)))).*...
+                    exp(1i*angle(BPhsMatch(:).^phsFact)))));
+            end
         end
     else
         printf('Designing DFT beta filter using firls');
