@@ -3,7 +3,7 @@ addpath rf_tools/ % JP's tools: gets dinf, b2a, cabc2rf, abr...
 N = 128; % # time points in filter
 G = 5; % gSlider factor
 Gpulse = 'ex'; % 'ex' or 'se' gSlider encoding
-tbG = 12; % overall tb product of encoding pulse; Should be > 2*G. If G/tbG 
+tbG = 12; % overall tb product of encoding pulse; Should be > 2*G. If G/tbG
 % is too high, you may get an error about non-increasing band edges from
 % firls
 tbOther = 8; % tb product of non-encoding pulse
@@ -17,7 +17,8 @@ cancelAlphaPhs = true; % Design the excitation pulse's beta to cancel its associ
 doRootFlip = false; % root-flip the non-encoding pulse,
 % and design the gSlider pulses to cancel the root-flipped phase profile.
 % This requires that the non-encoding pulse have lower tb than the encoding
-% pulse.
+% pulse. Ideally, the non-encoding pulse should have 2x lower tb than the encoding pulse,
+% otherwise there will be some increase ripple in the encoding pulse profile
 if strcmp(Gpulse,'ex')
     bsf = sqrt(1/2); % excitation pulse
     d1 = 0.01;d2 = 0.01; % passband and stopband ripples of the overall profile
@@ -37,15 +38,15 @@ elseif strcmp(Gpulse,'se')
 end
 
 % print out some info about what we are doing
-printf('--------gSlider RF Pulse Design---------');
-printf('Designing %s gSlider encoding pulses.',Gpulse);
-printf('Number of sub-slices: %d',G);
-printf('Slab time-bandwidth product: %g',tbG);
-printf('Duration: %d ms',T);
-printf('Slice Thickness: %g mm',slThick);
-printf('Output dwell time: %g ms',dt);
-printf('Time-bandwidth product of other pulse: %g',tbOther);
-printf('Slice thickness ratio of other pulse: %g',otherThickFactor);
+fprintf('--------gSlider RF Pulse Design---------\n');
+fprintf('Designing %s gSlider encoding pulses.\n',Gpulse);
+fprintf('Number of sub-slices: %d\n',G);
+fprintf('Slab time-bandwidth product: %g\n',tbG);
+fprintf('Duration: %d ms\n',T);
+fprintf('Slice Thickness: %g mm\n',slThick);
+fprintf('Output dwell time: %g ms\n',dt);
+fprintf('Time-bandwidth product of other pulse: %g\n',tbOther);
+fprintf('Slice thickness ratio of other pulse: %g\n',otherThickFactor);
 
 % design and simulate the other pulse
 if strcmp(Gpulse,'ex')
@@ -53,10 +54,10 @@ if strcmp(Gpulse,'ex')
 else
     Gother = 'ex';
 end
-printf('Designing the %s (non-encoding) pulse',Gother);
+fprintf('Designing the %s (non-encoding) pulse\n',Gother);
 [rfOther,bOther] = dzrf(N,tbOther,Gother,'ls',d1O,d2O);
 if doRootFlip
-    printf('Root-flipping the non-encoding pulse');
+    fprintf('Root-flipping the non-encoding pulse\n');
     if tbOther > tbG
         error 'Non-encoding tb must be < gSlider tb to root-flip'
     end
@@ -77,13 +78,13 @@ rfEnc = zeros(N,G);
 Mxy = zeros(N*8,G);
 nomFlips = zeros(G,1);
 for Gind = 1:G % sub-slice to design for
-    
-    printf('Designing pulse for sub-slice %d of %d',Gind,G);
-    
+
+    fprintf('Designing pulse for sub-slice %d of %d\n',Gind,G);
+
     % design the beta filter
     if ~DFTphs
         if usecvx
-            printf('Designing beta filter using cvx');
+            fprintf('Designing beta filter using cvx\n');
             if doRootFlip
                 if strcmp(Gpulse,'ex')
                     phsFact = 2; % we have to square the 180 beta phase to
@@ -98,7 +99,7 @@ for Gind = 1:G % sub-slice to design for
                 b = bsf*gSliderBeta_cvx(N,G,Gind,tbG,d1,d2,phi,cvx_osfact);
             end
         else % use firls
-            printf('Designing beta filter using firls');
+            fprintf('Designing beta filter using firls\n');
             b = bsf*gSliderBeta(N,G,Gind,tbG,d1,d2,phi);
             if doRootFlip
                 if strcmp(Gpulse,'ex')
@@ -116,12 +117,12 @@ for Gind = 1:G % sub-slice to design for
             end
         end
     else
-        printf('Designing DFT beta filter using firls');
+        fprintf('Designing DFT beta filter using firls\n');
         phs = 2*pi/G*(ceil(-G/2):ceil(G/2)-1)*(Gind+ceil(-G/2)-1);
         if strcmp(Gpulse,'se'); phs = phs./2; end
         b = bsf*gSliderBetaDFT(N,phs,tbG,d1,d2);
     end
-    
+
     % scale and solve for rf - note that b2rf alone doesn't work bc
     % b is not flipped correctly wrt a for non-symmetric profiles
     a = b2a(b);
@@ -129,7 +130,7 @@ for Gind = 1:G % sub-slice to design for
         b = ifft(fft(b(:).').*exp(1i*angle(fft(fliplr(a(:).')))));
     end
     rfEnc(:,Gind) = cabc2rf(a,fliplr(b(:).')); % iSLR for min-power pulse
-    
+
     % simulate the pulse
     [ap,bp] = abr(rfEnc(:,Gind),-N/2:1/8:N/2-1/8);
     % calculate target flip angle of pulse in degrees
@@ -139,7 +140,7 @@ for Gind = 1:G % sub-slice to design for
     elseif strcmp(Gpulse,'se')
         Mxy(:,Gind) = bp.^2;
     end
-    
+
 end
 
 % plot all the profiles
@@ -154,7 +155,7 @@ for ii = 1:G
         titleText = sprintf('SE profile; gSlider factor %d; sub-slice %d',G,ii);
         seSig = Mxy(:,ii).*conj(MxyO);
     end
-    
+
     % plot the first encoding pulse
     figure(h1);
     subplot(G*100 + 10 + ii),hold on
@@ -165,7 +166,7 @@ for ii = 1:G
     legend('|Mxy|','Mx','My');
     xlabel 'mm'
     axis([min(zG) max(zG) -1 1]);
-    
+
     % plot the overall spin echo signal
     figure(h2);
     titleText = sprintf('Spin echo signal profile; gSlider factor %d; sub-slice %d',G,ii);
@@ -177,7 +178,7 @@ for ii = 1:G
     legend('|SE signal|','Re\{SE Signal\}','Im\{SE Signal\}');
     xlabel 'mm'
     axis([min(zG) max(zG) -1 1]);
-    
+
 end
 
 % plot both the pulse profiles
@@ -226,12 +227,12 @@ title 'Both profile amplitudes'
 Nout = T/dt;
 rfEncOut = zeros(Nout,G);
 for ii = 1:G
-    rfEncOut(:,ii) = interp1((0:N-1)./N*T,rfEnc(:,ii),(0:Nout-1)*dt,'spline',0);
+    rfEncOut(:,ii) = interp1((0:N)./N*T,[rfEnc(:,ii); rfEnc(end,ii)],(0:Nout-1)*dt,'spline',0);
     rfEncOut(:,ii) = rfEncOut(:,ii)./sum(real(rfEncOut(:,ii)))*sum(real(rfEnc(:,ii)));
 end
 Tother = T*tbOther/tbG/otherThickFactor;
 NoutOther = round(Tother/dt);
-rfOtherOut = interp1((0:N-1)./N*Tother,rfOther,(0:NoutOther-1)*dt,'spline',0);
+rfOtherOut = interp1((0:N)./N*Tother,[rfOther, rfOther(end)],(0:NoutOther-1)*dt,'spline',0);
 rfOtherOut = rfOtherOut./sum(real(rfOtherOut))*sum(real(rfOther));
 
 % convert to uT
@@ -244,14 +245,18 @@ gAmp = tbG/(T*10^-3)/(slThick*10^-3)/42580; % mT/m, gradient amplitude
 tRFEnc = (0:size(rfEncOut,1)-1)*dt;
 tRFOther = (0:length(rfOtherOut)-1)*dt;
 figure
-subplot(210+plind),hold on
-plot(tRFEnc,real(rfEncOut));
-plot(tRFEnc,imag(rfEncOut));
-plot(tRFEnc,abs(rfEncOut));
-title(sprintf('%s gSlider Pulses',Gpulse));
-xlabel 'ms'
-ylabel 'uT'
-legend('|RF|','Re\{RF\}','Im\{RF\}');
+negBnd = floor(min([real(rfEncOut(:));imag(rfEncOut(:))]));
+posBnd = ceil(max(abs(rfEncOut(:))));
+for ii = 1:G
+  subplot(2,G,ii),hold on
+  plot(tRFEnc,real(rfEncOut(:,ii)));
+  plot(tRFEnc,imag(rfEncOut(:,ii)));
+  plot(tRFEnc,abs(rfEncOut(:,ii)));
+  title(sprintf('%s gSlider Pulse %d',Gpulse,ii));
+  xlabel 'ms'
+  ylabel 'uT'
+  axis([0 max(tRFEnc) negBnd posBnd])
+end
 
 subplot(210+plindO),hold on
 plot(tRFOther,real(rfOtherOut));
@@ -264,6 +269,7 @@ else
 end
 xlabel 'ms'
 ylabel 'uT'
+legend('|RF|','Re\{RF\}','Im\{RF\}');
 
 % write out the pulses, gradient amplitude, target slice thickness,
 % expected flip at middle of slice
