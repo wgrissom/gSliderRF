@@ -143,6 +143,7 @@ for Gind = 1:G % sub-slice to design for
 
 end
 
+
 % plot all the profiles
 zG = (-N/2:1/8:N/2-1/8)*slThick/tbG;
 h1 = figure;
@@ -228,12 +229,12 @@ Nout = T/dt;
 rfEncOut = zeros(Nout,G);
 for ii = 1:G
     rfEncOut(:,ii) = interp1((0:N)./N*T,[rfEnc(:,ii); rfEnc(end,ii)],(0:Nout-1)*dt,'spline',0);
-    rfEncOut(:,ii) = rfEncOut(:,ii)./sum(real(rfEncOut(:,ii)))*sum(real(rfEnc(:,ii)));
+    rfEncOut(:,ii) = rfEncOut(:,ii)./sum(abs(rfEncOut(:,ii)))*sum(abs(rfEnc(:,ii)));
 end
 Tother = T*tbOther/tbG/otherThickFactor;
 NoutOther = round(Tother/dt);
 rfOtherOut = interp1((0:N)./N*Tother,[rfOther, rfOther(end)],(0:NoutOther-1)*dt,'spline',0);
-rfOtherOut = rfOtherOut./sum(real(rfOtherOut))*sum(real(rfOther));
+rfOtherOut = rfOtherOut./sum(abs(rfOtherOut))*sum(abs(rfOther));
 
 % convert to uT
 rfEncOut = rfEncOut./(2*pi*42.58*dt*10^-3);
@@ -241,7 +242,63 @@ rfOtherOut = rfOtherOut./(2*pi*42.58*dt*10^-3);
 
 gAmp = tbG/(T*10^-3)/(slThick*10^-3)/42580; % mT/m, gradient amplitude
 
-% plot the final pulses
+% simulate the final slice profiles, after interpolation
+z = linspace(-2,2,8*N)*slThick; % mm
+MxyOut = zeros(8*N,G);
+for ii = 1:G
+    [ap,bp] = abr(2*pi*42.58*dt*10^-3*rfEncOut(:,ii),...
+        2*pi*42580*dt*10^-3*gAmp*ones(Nout,1),z./1000);
+    if strcmp(Gpulse,'ex')
+        MxyOut(:,ii) = 2*conj(ap).*bp.*exp(1i*2*pi*42580*dt*10^-3*gAmp*Nout/2*z(:)./1000); 
+    elseif strcmp(Gpulse,'se')
+        MxyOut(:,ii) = bp.^2;
+    end
+end
+[ap,bp] = abr(2*pi*42.58*dt*10^-3*rfOtherOut,...
+    2*pi*42580*dt*10^-3*gAmp*ones(NoutOther,1),z./1000);
+if strcmp(Gpulse,'ex')
+    MxyOut = bsxfun(@times,conj(MxyOut),bp.^2);%2*conj(ap).*bp.*exp(1i*2*pi/N*N/2*(-N/2:1/8:N/2-1/8)');
+elseif strcmp(Gpulse,'se')
+    MxyOut = bsxfun(@times,conj(2*conj(ap).*bp.*exp(1i*2*pi*42580*dt*10^-3*gAmp*Nout/2*z(:)./1000)),MxyOut);
+end
+% calculate signal matrix
+edges = zeros(G,2);
+ftw = dinf(d1,d2)/tbG; % fractional transition width of the slab profile
+for ii = 1:G
+    Gcent = (ii-G/2-1/2)*slThick/G;        
+    edges(ii,:) = [Gcent-(slThick/G/2-ftw*(slThick/2)) Gcent+(slThick/G/2-ftw*(slThick/2))];
+end
+encMtx = zeros(G);
+for ii = 1:G % loop over pulses
+    for jj = 1:G % loop over subslices
+        encMtx(ii,jj) = sum(MxyOut(z > edges(jj,1) & z < edges(jj,2),ii));
+    end
+end
+
+% plot the spin echo signal profiles of the output pulses, and 
+h1 = figure;
+for ii = 1:G
+
+    % plot the overall spin echo signal
+    figure(h1);
+    titleText = sprintf('Spin echo signal profile of interpolated output pulse; sub-slice %d',G,ii);
+    subplot(G*100 + 10 + ii),hold on
+    plot(z,abs(MxyOut(:,ii)));
+    plot(z,real(MxyOut(:,ii)));
+    plot(z,imag(MxyOut(:,ii)));
+    % also plot the band edges we used for encMtx calculation
+    for jj = 1:G
+        plot(edges(jj,1)*ones(10,1),-1:2/9:1,'--k');
+        plot(edges(jj,2)*ones(10,1),-1:2/9:1,'--k');
+    end
+    title(titleText);
+    legend('|SE signal|','Re\{SE Signal\}','Im\{SE Signal\}');
+    xlabel 'mm'
+    axis([min(z) max(z) -1 1]);
+
+end
+    
+% plot the final interpolated output pulses
 tRFEnc = (0:size(rfEncOut,1)-1)*dt;
 tRFOther = (0:length(rfOtherOut)-1)*dt;
 figure
