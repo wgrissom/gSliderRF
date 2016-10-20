@@ -6,10 +6,17 @@ ftw = dinf(d1,d2)/tb; % fractional transition width of the slab profile
 %% Design a gSlider beta polynomial - can get negative
 % band positions by flipping the waveform
 if rem(G,2) && Gind == ceil(G/2) % centered sub-slice
-    f = [0 (1/G-ftw)*(tb/2) (1/G+ftw)*(tb/2) (1-ftw)*(tb/2) (1+ftw)*(tb/2) (N/2)]/(N/2);
-    m = [exp(1i*phi) exp(1i*phi) 1 1 0 0];
-    w = [1 1 d1/d2];
-    b = firls(N-1,f,m,w); % the filter
+    if G == 1 % no sub-slices, as a sanity check
+        f = [0 (1-ftw)*(tb/2) (1+ftw)*(tb/2) (N/2)]/(N/2);
+        m = [1 1 0 0];
+        w = [1 d1/d2];
+        b = firls(N-1,f,m,w); % the filter
+    else
+        f = [0 (1/G-ftw)*(tb/2) (1/G+ftw)*(tb/2) (1-ftw)*(tb/2) (1+ftw)*(tb/2) (N/2)]/(N/2);
+        m = [exp(1i*phi) exp(1i*phi) 1 1 0 0];
+        w = [1 1 d1/d2];
+        b = firls(N-1,f,m,w); % the filter
+    end
 else
     % design two shifted filters that we can add to kill off the left band,
     % then demodulate the result back to DC

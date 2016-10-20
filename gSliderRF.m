@@ -1,6 +1,6 @@
 % Script to design gSlider pulses.
 addpath rf_tools/ % JP's tools: gets dinf, b2a, cabc2rf, abr...
-N = 128; % # time points in filter
+N = 256; % # time points in filter
 G = 5; % gSlider factor
 Gpulse = 'ex'; % 'ex' or 'se' gSlider encoding
 tbG = 12; % overall tb product of encoding pulse; Should be > 2*G. If G/tbG
@@ -14,7 +14,7 @@ slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
 DFTphs = false; % do DFT phases
 cancelAlphaPhs = true; % Design the excitation pulse's beta to cancel its associated alpha phase
-doRootFlip = false; % root-flip the non-encoding pulse,
+doRootFlip = true; % root-flip the non-encoding pulse,
 % and design the gSlider pulses to cancel the root-flipped phase profile.
 % This requires that the non-encoding pulse have lower tb than the encoding
 % pulse. Ideally, the non-encoding pulse should have 2x lower tb than the encoding pulse,
@@ -281,7 +281,7 @@ for ii = 1:G
 
     % plot the overall spin echo signal
     figure(h1);
-    titleText = sprintf('Spin echo signal profile of interpolated output pulse; sub-slice %d',G,ii);
+    titleText = sprintf('Spin echo signal profile of interpolated output pulse; sub-slice %d',ii);
     subplot(G*100 + 10 + ii),hold on
     plot(z,abs(MxyOut(:,ii)));
     plot(z,real(MxyOut(:,ii)));
