@@ -8,7 +8,7 @@ tbG = 12; % overall tb product of encoding pulse; Should be > 2*G. If G/tbG
 % firls
 tbOther = 8; % tb product of non-encoding pulse
 usecvx = false; % use Boyd's cvx toolbox for beta filter design
-dt = 2.5e-3; % ms, final dwell time of pulses
+dt = 4e-3; % ms, final dwell time of pulses
 T = 11; % ms, pulse duration of gSlider pulse; other pulse duration will be tbOther/tbG*T
 slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
@@ -331,5 +331,24 @@ legend('|RF|','Re\{RF\}','Im\{RF\}');
 % write out the pulses, gradient amplitude, target slice thickness,
 % expected flip at middle of slice
 % TODO: Should we phase shift the 90 or 180 by pi/2 for CPMG?
-save(sprintf('gSliderRF_%dx_%s',G,Gpulse),'rfEncOut','rfOtherOut',...
-    'gAmp','slThick','dt','nomFlips');
+scaleFactEnc = zeros(G,1);
+foo = rfOtherOut./max(abs(rfOtherOut));
+scaleFactOther = 100.96/(90+strcmp(Gother,'se')*90)*...
+        (sqrt(sum(real(foo))^2 + sum(imag(foo))^2)/386.3952)...
+        *(max(abs(rfOtherOut))/4.2616); 
+for ii = 1:G
+    foo = rfEncOut(:,ii)./max(abs(rfEncOut(:,ii)));
+    scaleFactEnc(ii) = 100.96/(90+strcmp(Gother,'ex')*90)*...
+        (sqrt(sum(real(foo))^2 + sum(imag(foo))^2)/386.3952)...
+        *(max(abs(rfEncOut(:,ii)))/4.2616); 
+end
+% scaling factors for Connectom scanner. This is referenced to the middle
+% (purely real) pulse of a gSlider 5 linear phase pulse set. The first
+% ratio is target flip of that pulse, divided by the flip the scanner wants
+% to apply. The second ratio is the AmpInt of the current pulse, divided by
+% the AmpInt of the reference pulse, the third ratio is the peak amplitude of
+% the current pulse, divided by the peak amplitude of the reference pulse.
+if doRootFlip == true;suffix = '_rootFlipped';else suffix = 'linPhs';end;
+if DFTphs == true;suffix2 = '_DFT';else suffix2 = '';end
+save(sprintf('gSliderRF_%dx_%s%s%s',G,Gpulse,suffix,suffix2),'rfEncOut','rfOtherOut',...
+    'gAmp','slThick','dt','nomFlips','scaleFactEnc','scaleFactOther');
