@@ -112,8 +112,16 @@ for Gind = 1:G % sub-slice to design for
                 freqFactor = tbOther/tbG/otherThickFactor;
                 BPhsMatch = exp(-1i*2*pi/N*(-N/2:N/2-1)'*freqFactor*...
                     (-N/2:N/2-1))*bOther(:);
-                b = ifftshift(ifft(ifftshift(fftshift(fft(fftshift(b(:)))).*...
-                    exp(1i*angle(BPhsMatch(:).^phsFact)))));
+                BPhsMatchOS = exp(-1i*2*pi/N*(-N/2:1/8:N/2-1/8)'*freqFactor*...
+                    (-N/2:N/2-1))*bOther(:);
+                %b = ifft(fft(b(:)).*ifftshift(exp(1i*angle(BPhsMatch(:).^phsFact))));
+                target = fft(b(:),8*N).* ...
+                    ifftshift(exp(1i*angle(BPhsMatchOS(:).^phsFact)));
+                if strcmp(Gpulse,'ex') && cancelAlphaPhs
+                    a = b2a(b);
+                    target = target.*exp(1i*angle(fft(flipud(a(:)),8*N)));
+                end
+                b = lsqr(@(x,tflag)fftoversamp(x,N,8,tflag),target);
             end
         end
     else
@@ -126,8 +134,10 @@ for Gind = 1:G % sub-slice to design for
     % scale and solve for rf - note that b2rf alone doesn't work bc
     % b is not flipped correctly wrt a for non-symmetric profiles
     a = b2a(b);
-    if strcmp(Gpulse,'ex') && cancelAlphaPhs
-        b = ifft(fft(b(:).').*exp(1i*angle(fft(fliplr(a(:).')))));
+    if ~doRootFlip && strcmp(Gpulse,'ex') && cancelAlphaPhs
+        %b = ifft(fft(b(:).').*exp(1i*angle(fft(fliplr(a(:).')))));
+        target = fft(b(:),8*N).*exp(1i*angle(fft(flipud(a(:)),8*N)));
+        b = lsqr(@(x,tflag)fftoversamp(x,N,8,tflag),target);
     end
     rfEnc(:,Gind) = cabc2rf(a,fliplr(b(:).')); % iSLR for min-power pulse
 
