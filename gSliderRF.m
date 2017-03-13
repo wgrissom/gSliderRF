@@ -61,7 +61,7 @@ if doRootFlip
     if tbOther > tbG
         error 'Non-encoding tb must be < gSlider tb to root-flip'
     end
-    [rfOther,bOther] = rootFlip(bOther,d1O,pi/2+strcmp(Gother,'se')*pi/2,tbOther);
+    [rfOther,bOther] = rootFlip(bOther,d1O,pi/2+strcmp(Gother,'se')*pi/2,tbOther,0.6);
 end
 if strcmp(Gpulse,'se') && cancelAlphaPhs % this pulse is the ex pulse; cancel alpha phs
     rfOther = b2rf(ifft(fft(bOther(:).').*exp(-1i*angle(fft(fliplr(b2a(bOther)))))));
