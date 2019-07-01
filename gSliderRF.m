@@ -3,6 +3,7 @@ addpath rf_tools/ % JP's tools: gets dinf, b2a, cabc2rf, abr...
 N = 256; % # time points in filter
 G = 5; % gSlider factor
 Gpulse = 'ex'; % 'ex' or 'se' gSlider encoding
+exFlip = 90*pi/180; % excitation flip angle
 tbG = 12; % overall tb product of encoding pulse; Should be > 2*G. If G/tbG
 % is too high, you may get an error about non-increasing band edges from
 % firls
@@ -20,10 +21,20 @@ doRootFlip = true; % root-flip the non-encoding pulse,
 % pulse. Ideally, the non-encoding pulse should have 2x lower tb than the encoding pulse,
 % otherwise there will be some increase ripple in the encoding pulse profile
 if strcmp(Gpulse,'ex')
-    bsf = sqrt(1/2); % excitation pulse
+    bsf = sin(exFlip/2); % excitation pulse
     d1 = 0.01;d2 = 0.01; % passband and stopband ripples of the overall profile
-    d1 = sqrt(d1/2); % Mxy passband ripple
-    d2 = d2/sqrt(2); % Mxy stopband ripple
+    %d1 = sqrt(d1/2); % Mxy passband ripple - depends on flip - calculate
+    %by brute force for arbitrary flip
+    d1Candidates = -0.1:0.001:0.1;
+    bd1 = (1 + d1Candidates)*sin(exFlip/2);
+    ad1 = sqrt(1-bd1.^2);
+    MxyErr = abs(2*ad1.*bd1 - 2*cos(exFlip/2)*sin(exFlip/2)); 
+    % find smallest beta error that gives target Mxy Error; use that as
+    % beta ripple level
+    [~,NegInd] = min(abs(MxyErr(1:100) - d1));Negd1 = -d1Candidates(NegInd);
+    [~,PosInd] = min(abs(MxyErr(101:end) - d1));Posd1 = d1Candidates(100+PosInd);
+    d1 = max(Negd1,Posd1);
+    d2 = d2/sqrt(2); % Mxy stopband ripple - small-tip, so its independent of flip
     d1O = 0.01;d2O = 0.01; % passband and stopband ripples of the se profile
     phi = pi; % slice phase - e.g., for ex, will be pi, for se, will be pi/2
     cvx_osfact = 8;
