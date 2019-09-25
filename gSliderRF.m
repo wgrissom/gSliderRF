@@ -14,6 +14,7 @@ T = 11; % ms, pulse duration of gSlider pulse; other pulse duration will be tbOt
 slThick = 3.3; % mm, gSlider slice thickness
 otherThickFactor = 1.15; % factor to increase slice thickness of non-gSlider pulse
 DFTphs = false; % do DFT phases
+HadamardPhs = false; % do Hadamard phases
 cancelAlphaPhs = true; % Design the excitation pulse's beta to cancel its associated alpha phase
 doRootFlip = true; % root-flip the non-encoding pulse,
 % and design the gSlider pulses to cancel the root-flipped phase profile.
@@ -95,7 +96,7 @@ for Gind = 1:G % sub-slice to design for
     fprintf('Designing pulse for sub-slice %d of %d\n',Gind,G);
 
     % design the beta filter
-    if ~DFTphs
+    if ~DFTphs || HadamardPhs
         if usecvx
             fprintf('Designing beta filter using cvx\n');
             if doRootFlip
@@ -138,10 +139,15 @@ for Gind = 1:G % sub-slice to design for
             end
         end
     else
-        fprintf('Designing DFT beta filter using firls\n');
-        phs = 2*pi/G*(ceil(-G/2):ceil(G/2)-1)*(Gind+ceil(-G/2)-1);
-        if strcmp(Gpulse,'se'); phs = phs./2; end
-        b = bsf*gSliderBetaDFT(N,phs,tbG,d1,d2);
+        if DFTphs
+            fprintf('Designing DFT beta filter using firls\n');
+            phs = 2*pi/G*(ceil(-G/2):ceil(G/2)-1)*(Gind+ceil(-G/2)-1);
+            if strcmp(Gpulse,'se'); phs = phs./2; end
+            b = bsf*gSliderBetaDFT(N,phs,tbG,d1,d2);
+        else
+            fprintf('Designing Hadamard beta filter using firls\n');
+            b = bsf*gSliderBetaHadamard_pn(N,G,Gind,tbG,d1,d2);
+        end
     end
 
     % scale and solve for rf - note that b2rf alone doesn't work bc
